@@ -1,75 +1,57 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 from fenics import *
 
-def inviscid_burgers(mesh_resolution):
-    # Define domain and mesh
-    xmin, xmax = 0, 1
-    ymin, ymax = 0, 1
-    mesh = RectangleMesh(Point(xmin, ymin), Point(xmax, ymax), mesh_resolution, mesh_resolution)
+# Parameters
+epsilon = 0.1
+length = 3.0
+n_x = 100
+dt = 0.01
+T = 2.0
+num_steps = int(T/dt)
 
-    # Define function space
-    V = VectorFunctionSpace(mesh, "CG", 1)
+def solve_1d_burger(epsilon, length, n_x, dt, num_steps):
+    # Define mesh and function spaces
+    mesh = IntervalMesh(n_x, 0, length)
+    V = FunctionSpace(mesh, 'CG', 1)
 
     # Define initial condition
-    u_0 = Expression(("sin(2*pi*x[0]) * sin(2*pi*x[1])", "sin(2*pi*x[0]) * sin(2*pi*x[1])"), degree=2)
-    u_n = interpolate(u_0, V)
+    x = SpatialCoordinate(mesh)
+    u_init = Expression('exp(-2*pow(x[0] - 1, 2))', degree=2)
+    u_n = interpolate(u_init, V)
 
-    # Time step size
-    dt = 0.01
-
-    # Define variational problem
+    # Define test and trial functions
     u = TrialFunction(V)
     v = TestFunction(V)
-    F = (inner(u - u_n, v) * dx + dt * inner(dot(u_n, grad(u)), v) * dx)
+    u_ = Function(V)
 
+    # Define weak form
+    F = (u - u_n) / dt * v * dx + u_ * u.dx(0) * v * dx + epsilon * u.dx(0) * v.dx(0) * dx
     a, L = lhs(F), rhs(F)
-    u = Function(V)
 
     # Time-stepping
-    T = 1.0
-    t = 0.0
-    while t < T:
-        # Update time
+    t = 0
+
+    # Prepare for visualization
+    fig, ax = plt.subplots()
+    x_vals = mesh.coordinates()
+    ax.set_xlim(0, length)
+    ax.set_ylim(0, 1)
+    line, = ax.plot([], [], lw=2)
+
+    def update(frame, u_n, u, u_, t, dt):
+        u_.assign(u_n)  # Update the non-linear term with the previous solution
+        solve(a == L, u_)
+        u_n.assign(u_)
         t += dt
+        line.set_data(x_vals, u_n.compute_vertex_values())
+        return line
 
-        # Compute the solution at the new time level
-        solve(a == L, u)
+    ani = animation.FuncAnimation(fig, update, frames=num_steps, fargs=(u_n, u, u_, t, dt),
+                                interval=100, blit=True)
+    ani.save('vanishing_viscosity.gif', writer='pillow', fps=15)
 
-        # Update the previous solution
-        u_n.assign(u)
 
-    return u
-
-def L2_error(u_exact, u_approx):
-    return errornorm(u_exact, u_approx, 'L2')
-
-def main():
-    mesh_resolutions = [10, 20, 40, 80]
-    errors = []
-
-    for res in mesh_resolutions:
-        print(f"Solving for mesh resolution: {res}")
-        u_approx = inviscid_burgers(res)
-        plt.figure()
-        plot(u_approx, title=f"Approximate solution for resolution {res}")
-        plt.show()
-        plt.close()
-
-        # Analytical solution for comparison
-        u_exact = Expression(("sin(2*pi*x[0]) * sin(2*pi*x[1]) * exp(-2*pi*pi*t)", "sin(2*pi*x[0]) * sin(2*pi*x[1]) * exp(-2*pi*pi*t)"), t=1, degree=2)
-
-        error = L2_error(u_exact, u_approx)
-        errors.append(error)
-        print(f"Error (L2 norm) for resolution {res}: {error}")
-
-    plt.plot(mesh_resolutions, errors, label="Error")
-    plt.xlabel("Mesh resolution")
-    plt.ylabel("Error")
-    plt.legend()
-    plt.title("Inviscid Burger's Equation: Error vs Mesh Resolution")
-    plt.grid()
-    plt.show()
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    solve_1d_burger(epsilon, length, n_x, dt, num_steps)
