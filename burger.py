@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from fenics import *
+from tqdm import tqdm
 
 # Parameters
 epsilon = 0.1
@@ -11,14 +12,14 @@ dt = 0.01
 T = 2.0
 num_steps = int(T/dt)
 
-def solve_1d_burger(epsilon, length, n_x, dt, num_steps, expression_str=None):
+def solve_1d_burger(epsilon, length, n_x, dt, num_steps, expression_str=None, global_solution_idx=0):
     # Define mesh and function spaces
     mesh = IntervalMesh(n_x, 0, length)
     V = FunctionSpace(mesh, 'CG', 1)
 
     # Define initial condition
     x = SpatialCoordinate(mesh)
-    u_init = Expression('exp(-2*pow(x[0] - 1, 2))', degree=2)
+    u_init = Expression(expression_str, degree=2)
     u_n = interpolate(u_init, V)
 
     # Define test and trial functions
@@ -41,7 +42,7 @@ def solve_1d_burger(epsilon, length, n_x, dt, num_steps, expression_str=None):
     line, = ax.plot([], [], lw=2)
 
     # Initialize solution matrix
-    u_vals = np.zeros((num_steps, n_x))
+    u_vals = np.zeros((num_steps, n_x+1))
 
     def update(frame, u_n, u, u_, t, dt):
         u_.assign(u_n)  # Update the non-linear term with the previous solution
@@ -50,11 +51,14 @@ def solve_1d_burger(epsilon, length, n_x, dt, num_steps, expression_str=None):
         u_vals[frame, :] = u_n.compute_vertex_values()
         t += dt
         line.set_data(x_vals, u_n.compute_vertex_values())
-        return line
+        return line,
 
     ani = animation.FuncAnimation(fig, update, frames=num_steps, fargs=(u_n, u, u_, t, dt),
                                 interval=100, blit=True)
-    ani.save('vanishing_viscosity.gif', writer='pillow', fps=15)
+    plt.close()
+    # ani.save('./burger/vanishing_viscosity_{}.gif'.format(global_solution_idx), writer='pillow', fps=15)
+    global_solution_idx += 1
+    return u_vals
 
 
 def gen_random_expression_str():
@@ -72,6 +76,11 @@ def gen_random_expression_str():
     
 
 if __name__ == '__main__':
-    for i in range(10):
-        exp = gen_random_expression_str()
-        solve_1d_burger(epsilon, length, n_x, dt, num_steps, exp)
+    u_vals = []
+
+    for i in tqdm(range(10000)):
+        exp_ = gen_random_expression_str()
+        u_val = solve_1d_burger(epsilon, length, n_x, dt, num_steps, exp_, i)
+        u_vals.append(u_val)
+
+    np.save('./burger/burger_results.npy', u_vals)
