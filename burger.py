@@ -11,7 +11,7 @@ dt = 0.01
 T = 2.0
 num_steps = int(T/dt)
 
-def solve_1d_burger(epsilon, length, n_x, dt, num_steps):
+def solve_1d_burger(epsilon, length, n_x, dt, num_steps, expression_str=None):
     # Define mesh and function spaces
     mesh = IntervalMesh(n_x, 0, length)
     V = FunctionSpace(mesh, 'CG', 1)
@@ -40,10 +40,14 @@ def solve_1d_burger(epsilon, length, n_x, dt, num_steps):
     ax.set_ylim(0, 1)
     line, = ax.plot([], [], lw=2)
 
+    # Initialize solution matrix
+    u_vals = np.zeros((num_steps, n_x))
+
     def update(frame, u_n, u, u_, t, dt):
         u_.assign(u_n)  # Update the non-linear term with the previous solution
         solve(a == L, u_)
         u_n.assign(u_)
+        u_vals[frame, :] = u_n.compute_vertex_values()
         t += dt
         line.set_data(x_vals, u_n.compute_vertex_values())
         return line
@@ -53,5 +57,21 @@ def solve_1d_burger(epsilon, length, n_x, dt, num_steps):
     ani.save('vanishing_viscosity.gif', writer='pillow', fps=15)
 
 
+def gen_random_expression_str():
+    """
+    generate a str expression for initial condition of burgers equation such as 'exp(-2*pow(x[0] - 1, 2))', 'sin(x[0])', etc.
+    """
+    function_type = np.random.choice(['exp', 'sin', 'cos', 'pow'])
+    x_center = np.random.uniform(0, 3)
+    if function_type == 'exp':
+        return function_type + '(-2*pow(x[0] - ' + str(x_center) + ', 2))'
+    elif function_type == 'pow':
+        return function_type + '(x[0] - ' + str(x_center) + ', 2)'
+    else:
+        return function_type + '(x[0] - ' + str(x_center) + ')'
+    
+
 if __name__ == '__main__':
-    solve_1d_burger(epsilon, length, n_x, dt, num_steps)
+    for i in range(10):
+        exp = gen_random_expression_str()
+        solve_1d_burger(epsilon, length, n_x, dt, num_steps, exp)
