@@ -121,10 +121,7 @@ def main():
     plt.grid()
     plt.show()
 
-def main_steady_state():
-    mesh_resolutions = [2, 5, 7, 10]
-    num_simulations = 500
-
+def main_steady_state(mesh_resolutions, num_simulations):
     # create mesh for all resolutions
     meshes = []
     for res in mesh_resolutions:
@@ -160,7 +157,8 @@ def merge_xdmf_files_to_h5(num_simulations, mesh_resolutions, meshes):
                 with XDMFFile(f"u_sim_{sim}_res_{res}.xdmf") as xdmf_file:
                     xdmf_file.read_checkpoint(u, "u", 0)
                 
-                u_array = u.vector()[:]
+                u_array = u.compute_vertex_values(mesh)
+
                 h5_file.create_dataset(f"u_sim_{sim}", data=u_array)
                 # os.remove(f"u_sim_{sim}_res_{res}.xdmf")
 
@@ -197,8 +195,9 @@ def save_mesh_to_xdmf(mesh_resolutions, meshes):
             h5_file.create_dataset("line_lengths", data=line_lengths)
 
 if __name__ == "__main__":
-    meshes = main_steady_state()
-    num_simulations = 500
-    mesh_resolutions = [2, 5, 7, 10]
+    num_simulations = 1000
+    mesh_resolutions = [5, 7, 10, 100]
+    meshes = main_steady_state(mesh_resolutions, num_simulations)
+    
     merge_xdmf_files_to_h5(num_simulations, mesh_resolutions, meshes)
     save_mesh_to_xdmf(mesh_resolutions, meshes)
