@@ -2,6 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from fenics import *
+from fenicstools.Interpolation import interpolate_nonmatching_mesh
 from dolfin import *
 import h5py
 
@@ -79,13 +80,10 @@ def steady_state_heat_equation(mesh_resolution, random_heat_source, mesh):
     return project(u, V)
 
 def generate_random_heat_source(mesh_resolution):
-    x = np.linspace(0, 1, mesh_resolution + 1)
-    y = np.linspace(0, 1, mesh_resolution + 1)
-    X, Y = np.meshgrid(x, y)
-    source_x = np.random.randint(0, mesh_resolution + 1)
-    source_y = np.random.randint(0, mesh_resolution + 1)
+    source_x = np.random.uniform(0, 1)
+    source_y = np.random.uniform(0, 1)
 
-    return f"exp(-(pow((x[0] - {X[source_x, source_y]}), 2) + pow((x[1] - {Y[source_x, source_y]}), 2))/(2*sigma*sigma))"
+    return f"exp(-(pow((x[0] - {source_x}), 2) + pow((x[1] - {source_y}), 2))/(2*sigma*sigma))"
         
  
 def L2_error(u_exact, u_approx):
@@ -148,15 +146,21 @@ def main_steady_state(mesh_resolutions, num_simulations):
 def merge_xdmf_files_to_h5(num_simulations, mesh_resolutions, meshes):
     for res in mesh_resolutions:
         mesh = meshes[mesh_resolutions.index(res)]
+        mesh_interpolate = meshes[0]
         
         V = FunctionSpace(mesh, "CG", 1)
+        Q = FunctionSpace(mesh_interpolate, "CG", 1) 
         
         with h5py.File(f"heat_solutions_res_{res}.h5", "w") as h5_file:
             for sim in range(num_simulations):
                 u = Function(V)
+                ul = Function(Q)
                 with XDMFFile(f"u_sim_{sim}_res_{res}.xdmf") as xdmf_file:
                     xdmf_file.read_checkpoint(u, "u", 0)
                 
+                # ul = interpolate_nonmatching_mesh(u, Q)
+
+                # u_array = ul.compute_vertex_values(mesh_interpolate)
                 u_array = u.compute_vertex_values(mesh)
 
                 h5_file.create_dataset(f"u_sim_{sim}", data=u_array)

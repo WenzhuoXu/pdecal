@@ -56,24 +56,31 @@ def solve_1d_burger(epsilon, length, n_x, dt, num_steps, expression_str=None, gl
     return np.array(u_val)
 
 
-def solve_2d_burger(epsilon, length, n_x, dt, num_steps, expression_str=None, global_solution_idx=0):
-    # Define mesh and function spaces
+def generate_2d_mesh(length, n_x):
     mesh = RectangleMesh(Point(0, 0), Point(length, length), n_x, n_x)
-    V = FunctionSpace(mesh, 'CG', 1)
+    return mesh
+
+def solve_2d_burger(mesh, epsilon, length, n_x, dt, num_steps, expression_str=None, global_solution_idx=0):
+    # Define mesh and function spaces
+    # mesh = RectangleMesh(Point(0, 0), Point(length, length), n_x, n_x)
+    V = VectorFunctionSpace(mesh, 'P', 2)
 
     # Define initial condition
     x = SpatialCoordinate(mesh)
-    u_init = Expression(expression_str, degree=2)
+    u_init = Expression((expression_str, expression_str), degree=2)
     u_n = interpolate(u_init, V)
 
     # Define test and trial functions
     u = TrialFunction(V)
     v = TestFunction(V)
+    f = Constant((0, 0))
     u_ = Function(V)
 
     # Define weak form
-    a = u * v * dx + epsilon * dot(grad(u), grad(v)) * dx
-    L = u_init * v * dx
+    F = inner((u - u_n) / dt, v)*dx - dot(v, dot(u_n, grad(u)))*dx \
+        + epsilon*inner(grad(u), grad(v))*dx
+    a = lhs(F)
+    L = rhs(F)
 
     # Time-stepping
     t = 0
@@ -83,23 +90,37 @@ def solve_2d_burger(epsilon, length, n_x, dt, num_steps, expression_str=None, gl
     x_vals = mesh.coordinates()
     ax.set_xlim(0, length)
     ax.set_ylim(0, length)
-    square, = ax.plot([], [], lw=2)
+
+    u_vector = u_n.compute_vertex_values(mesh)
+    # compute the magnitude of the velocity
+    u_mag = np.sqrt(u_vector[:len(u_vector)//2]**2 + u_vector[len(u_vector)//2:]**2)
+
+    cont = [ax.contourf(x_vals[:, 0].reshape((n_x+1, n_x+1)), x_vals[:, 1].reshape((n_x+1, n_x+1)), u_mag.reshape((n_x+1, n_x+1)))]
 
     # Initialize solution matrix
     u_val = []
 
     def update(frame, u_n, u, u_, t, dt):
+        # global cont
         u_.assign(u_n)
-        solve(a == L, u_, bcs=[DirichletBC(V, 0, "on_boundary")])
+        solve(a == L, u_)
         u_n.assign(u_)
         # u_vals[frame, :, :] = u_n.compute_vertex_values().reshape((n_x+1, n_x+1))
-        u_val.append(u_n.compute_vertex_values().reshape((n_x+1, n_x+1)))
+        u_vector = u_n.compute_vertex_values()
+        # compute the magnitude of the velocity
+        u_mag = np.sqrt(u_vector[:len(u_vector)//2]**2 + u_vector[len(u_vector)//2:]**2)
+        u_val.append(u_mag)
+
+        for c in cont[0].collections:
+            c.remove()
+        cont[0] = ax.contourf(x_vals[:, 0].reshape((n_x+1, n_x+1)), x_vals[:, 1].reshape((n_x+1, n_x+1)), u_mag.reshape((n_x+1, n_x+1)))
+
         t += dt
-        square.set_data(u_n.x, u_n.y)
-        return square,
+        
+        return cont[0].collections,
 
     ani = animation.FuncAnimation(fig, update, frames=num_steps, fargs=(u_n, u, u_, t, dt),
-                                interval=100, blit=True)
+                                interval=100, blit=False)
     
     ani.save('./burger/vanishing_viscosity_{}.gif'.format(global_solution_idx), writer='pillow', fps=15)
     plt.close()
@@ -121,19 +142,45 @@ def gen_random_expression_str():
         return function_type + '(x[0] - ' + str(x_center) + ')'
     
 
+def gen_random_expression_str_2d():
+    """
+    generate a str expression for initial condition of burgers equation using a Gaussian initial velocity distribution. The center of the Gaussian is randomly generated.
+    """
+    x_center = np.random.uniform(0, 3)
+    y_center = np.random.uniform(0, 3)
+    return 'exp(-2*pow(x[0] - ' + str(x_center) + ', 2) - 2*pow(x[1] - ' + str(y_center) + ', 2))'
+    
+
 if __name__ == '__main__':
     # Parameters
-    epsilon = 0.1
+    epsilon = 0.01
     length = 3.0
     n_x = 100
-    dt = 0.01
-    T = 2.0
+    dt = 0.1
+    T = 10.0
     num_steps = int(T/dt)
-    u_vals = []
+    # u_vals = []
+    mesh_resolutions = [20, 40, 80, 100]
+    mesh_all = [generate_2d_mesh(length, n_x) for n_x in mesh_resolutions]
+    u_val_res_1 = []
+    u_val_res_2 = []
+    u_val_res_3 = []
+    u_val_res_4 = []
 
-    for i in tqdm(range(10000)):
-        exp_ = gen_random_expression_str()
-        u_val = solve_1d_burger(epsilon, length, n_x, dt, num_steps, exp_, i)
-        u_vals.append(u_val)
+    for i in tqdm(range(1000)):
+        exp_ = gen_random_expression_str_2d()
+        for i in range(len(mesh_resolutions)):
+            u_val = solve_2d_burger(mesh_all[i], epsilon, length, mesh_resolutions[i], dt, num_steps, exp_, i)
+            if i == 0:
+                u_val_res_1.append(u_val)
+            elif i == 1:
+                u_val_res_2.append(u_val)
+            elif i == 2:
+                u_val_res_3.append(u_val)
+            elif i == 3:
+                u_val_res_4.append(u_val)
 
-    np.save('./burger/burger_results.npy', u_vals)
+    np.save('./burger/burger_results_res_{}.npy'.format(mesh_resolutions[0]), np.array(u_val_res_1))
+    np.save('./burger/burger_results_res_{}.npy'.format(mesh_resolutions[1]), np.array(u_val_res_2))
+    np.save('./burger/burger_results_res_{}.npy'.format(mesh_resolutions[2]), np.array(u_val_res_3))
+    np.save('./burger/burger_results_res_{}.npy'.format(mesh_resolutions[3]), np.array(u_val_res_4))
