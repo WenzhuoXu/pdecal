@@ -1,8 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from fenicstools.Interpolation import interpolate_nonmatching_mesh
 from fenics import *
 from tqdm import tqdm
+import h5py
 import os
 
 def solve_1d_burger(epsilon, length, n_x, dt, num_steps, expression_str=None, global_solution_idx=0):
@@ -58,12 +60,31 @@ def solve_1d_burger(epsilon, length, n_x, dt, num_steps, expression_str=None, gl
 
 def generate_2d_mesh(length, n_x):
     mesh = RectangleMesh(Point(0, 0), Point(length, length), n_x, n_x)
+    # save mesh to h5 file
+    with h5py.File('./burger/mesh_{}.h5'.format(n_x), 'w') as f:
+        X = mesh.coordinates()
+            # X = [points[:, i] for i in range(2)]
+        edges(mesh)
+            # define connectivity in COO format
+        lines = np.zeros((2 * mesh.num_edges(), 2), dtype=np.int32)
+        line_lengths = np.zeros(2 * mesh.num_edges(), dtype=np.int32)
+
+        for i, edge in enumerate(edges(mesh)):
+            lines[2*i, :] = edge.entities(0)
+            lines[2*i+1, :] = np.flipud(edge.entities(0))
+            line_lengths[2*i] = edge.length()
+            line_lengths[2*i+1] = edge.length()
+
+        f.create_dataset("X", data=X)
+        f.create_dataset("lines", data=lines)
+        f.create_dataset("line_lengths", data=line_lengths)
     return mesh
 
-def solve_2d_burger(mesh, epsilon, length, n_x, dt, num_steps, expression_str=None, global_solution_idx=0):
+def solve_2d_burger(mesh, mesh_high, epsilon, dt, num_steps, expression_str=None, global_solution_idx=0):
     # Define mesh and function spaces
     # mesh = RectangleMesh(Point(0, 0), Point(length, length), n_x, n_x)
     V = VectorFunctionSpace(mesh, 'P', 2)
+    Q = VectorFunctionSpace(mesh_high, 'P', 2)
 
     # Define initial condition
     x = SpatialCoordinate(mesh)
@@ -86,44 +107,33 @@ def solve_2d_burger(mesh, epsilon, length, n_x, dt, num_steps, expression_str=No
     t = 0
 
     # Prepare for visualization
-    fig, ax = plt.subplots()
-    x_vals = mesh.coordinates()
-    ax.set_xlim(0, length)
-    ax.set_ylim(0, length)
-
     u_vector = u_n.compute_vertex_values(mesh)
     # compute the magnitude of the velocity
-    u_mag = np.sqrt(u_vector[:len(u_vector)//2]**2 + u_vector[len(u_vector)//2:]**2)
+    # u_mag = np.sqrt(u_vector[:len(u_vector)//2]**2 + u_vector[len(u_vector)//2:]**2)
 
-    cont = [ax.contourf(x_vals[:, 0].reshape((n_x+1, n_x+1)), x_vals[:, 1].reshape((n_x+1, n_x+1)), u_mag.reshape((n_x+1, n_x+1)))]
+    # cont = [ax.contourf(x_vals[:, 0].reshape((n_x+1, n_x+1)), x_vals[:, 1].reshape((n_x+1, n_x+1)), u_mag.reshape((n_x+1, n_x+1)))]
 
     # Initialize solution matrix
     u_val = []
 
-    def update(frame, u_n, u, u_, t, dt):
+    def update(u_n, u_, t, dt):
         # global cont
         u_.assign(u_n)
         solve(a == L, u_)
         u_n.assign(u_)
         # u_vals[frame, :, :] = u_n.compute_vertex_values().reshape((n_x+1, n_x+1))
-        u_vector = u_n.compute_vertex_values()
+        # interpolate u_n to high resolution mesh
+        u_n_high = interpolate_nonmatching_mesh(u_n, Q)
+        u_vector = u_n_high.compute_vertex_values(mesh_high)
         # compute the magnitude of the velocity
         u_mag = np.sqrt(u_vector[:len(u_vector)//2]**2 + u_vector[len(u_vector)//2:]**2)
         u_val.append(u_mag)
 
-        for c in cont[0].collections:
-            c.remove()
-        cont[0] = ax.contourf(x_vals[:, 0].reshape((n_x+1, n_x+1)), x_vals[:, 1].reshape((n_x+1, n_x+1)), u_mag.reshape((n_x+1, n_x+1)))
-
         t += dt
         
-        return cont[0].collections,
-
-    ani = animation.FuncAnimation(fig, update, frames=num_steps, fargs=(u_n, u, u_, t, dt),
-                                interval=100, blit=False)
+    for i in range(num_steps):
+        update(u_n, u_, t, dt)
     
-    ani.save('./burger/vanishing_viscosity_{}.gif'.format(global_solution_idx), writer='pillow', fps=15)
-    plt.close()
     global_solution_idx += 1
     return np.array(u_val)
 
@@ -160,7 +170,7 @@ if __name__ == '__main__':
     T = 10.0
     num_steps = int(T/dt)
     # u_vals = []
-    mesh_resolutions = [20, 40, 80, 100]
+    mesh_resolutions = [10, 20, 40, 80]
     mesh_all = [generate_2d_mesh(length, n_x) for n_x in mesh_resolutions]
     u_val_res_1 = []
     u_val_res_2 = []
@@ -170,7 +180,7 @@ if __name__ == '__main__':
     for i in tqdm(range(1000)):
         exp_ = gen_random_expression_str_2d()
         for i in range(len(mesh_resolutions)):
-            u_val = solve_2d_burger(mesh_all[i], epsilon, length, mesh_resolutions[i], dt, num_steps, exp_, i)
+            u_val = solve_2d_burger(mesh_all[i], mesh_all[3], epsilon, dt, num_steps, exp_, i)
             if i == 0:
                 u_val_res_1.append(u_val)
             elif i == 1:
@@ -180,7 +190,24 @@ if __name__ == '__main__':
             elif i == 3:
                 u_val_res_4.append(u_val)
 
-    np.save('./burger/burger_results_res_{}.npy'.format(mesh_resolutions[0]), np.array(u_val_res_1))
-    np.save('./burger/burger_results_res_{}.npy'.format(mesh_resolutions[1]), np.array(u_val_res_2))
-    np.save('./burger/burger_results_res_{}.npy'.format(mesh_resolutions[2]), np.array(u_val_res_3))
-    np.save('./burger/burger_results_res_{}.npy'.format(mesh_resolutions[3]), np.array(u_val_res_4))
+    
+    with h5py.File('solution_{}.h5'.format(mesh_resolutions[0]), 'w') as f:
+        for i in range(1000):
+            f.create_group('{}'.format(i))
+            f['{}'.format(i)].create_dataset('u', data=u_val_res_1[i])
+
+    with h5py.File('solution_{}.h5'.format(mesh_resolutions[1]), 'w') as f:
+        for i in range(1000):
+            f.create_group('{}'.format(i))
+            f['{}'.format(i)].create_dataset('u', data=u_val_res_2[i])
+
+    with h5py.File('solution_{}.h5'.format(mesh_resolutions[2]), 'w') as f:
+        for i in range(1000):
+            f.create_group('{}'.format(i))
+            f['{}'.format(i)].create_dataset('u', data=u_val_res_3[i])
+
+    with h5py.File('solution_{}.h5'.format(mesh_resolutions[3]), 'w') as f:
+        for i in range(1000):
+            f.create_group('{}'.format(i))
+            f['{}'.format(i)].create_dataset('u', data=u_val_res_4[i])
+
