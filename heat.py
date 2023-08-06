@@ -187,7 +187,7 @@ def save_mesh_to_xdmf(mesh_resolutions, meshes):
             edges(mesh)
             # define connectivity in COO format
             lines = np.zeros((2 * mesh.num_edges(), 2), dtype=np.int32)
-            line_lengths = np.zeros(2 * mesh.num_edges(), dtype=np.int32)
+            line_lengths = np.zeros(2 * mesh.num_edges(), dtype=np.float64)
             for i, edge in enumerate(edges(mesh)):
                 lines[2*i, :] = edge.entities(0)
                 lines[2*i+1, :] = np.flipud(edge.entities(0))
@@ -199,7 +199,7 @@ def save_mesh_to_xdmf(mesh_resolutions, meshes):
             h5_file.create_dataset("line_lengths", data=line_lengths)
 
 if __name__ == "__main__":
-    num_simulations = 1000
+    num_simulations = 1
     mesh_resolutions = [5, 7, 10, 100]
     meshes = main_steady_state(mesh_resolutions, num_simulations)
     

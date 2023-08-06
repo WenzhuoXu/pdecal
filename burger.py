@@ -177,7 +177,7 @@ if __name__ == '__main__':
     u_val_res_3 = []
     u_val_res_4 = []
 
-    for i in tqdm(range(1000)):
+    for i in tqdm(range(800)):
         exp_ = gen_random_expression_str_2d()
         for i in range(len(mesh_resolutions)):
             u_val = solve_2d_burger(mesh_all[i], mesh_all[3], epsilon, dt, num_steps, exp_, i)
@@ -192,22 +192,22 @@ if __name__ == '__main__':
 
     
     with h5py.File('solution_{}.h5'.format(mesh_resolutions[0]), 'w') as f:
-        for i in range(1000):
+        for i in range(800):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_1[i])
 
     with h5py.File('solution_{}.h5'.format(mesh_resolutions[1]), 'w') as f:
-        for i in range(1000):
+        for i in range(800):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_2[i])
 
     with h5py.File('solution_{}.h5'.format(mesh_resolutions[2]), 'w') as f:
-        for i in range(1000):
+        for i in range(800):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_3[i])
 
     with h5py.File('solution_{}.h5'.format(mesh_resolutions[3]), 'w') as f:
-        for i in range(1000):
+        for i in range(800):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_4[i])
 
