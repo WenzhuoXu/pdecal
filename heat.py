@@ -1,4 +1,6 @@
 import os
+os.environ['HDF5_DISABLE_VERSION_CHECK'] = '2' # Only add this for TRACE to work, comment out for other cases! 
+
 import numpy as np
 import matplotlib.pyplot as plt
 from fenics import *

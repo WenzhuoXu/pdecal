@@ -1,3 +1,6 @@
+import os
+os.environ['HDF5_DISABLE_VERSION_CHECK'] = '2' # Only add this for TRACE to work, comment out for other cases! 
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -5,7 +8,7 @@ from fenicstools.Interpolation import interpolate_nonmatching_mesh
 from fenics import *
 from tqdm import tqdm
 import h5py
-import os
+
 
 def solve_1d_burger(epsilon, length, n_x, dt, num_steps, expression_str=None, global_solution_idx=0):
     # Define mesh and function spaces
@@ -177,7 +180,7 @@ if __name__ == '__main__':
     u_val_res_3 = []
     u_val_res_4 = []
 
-    for i in tqdm(range(800)):
+    for i in tqdm(range(1000)):
         exp_ = gen_random_expression_str_2d()
         for i in range(len(mesh_resolutions)):
             u_val = solve_2d_burger(mesh_all[i], mesh_all[3], epsilon, dt, num_steps, exp_, i)
