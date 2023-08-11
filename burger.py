@@ -180,7 +180,7 @@ if __name__ == '__main__':
     u_val_res_3 = []
     u_val_res_4 = []
 
-    for i in tqdm(range(1000)):
+    for i in tqdm(range(800)):
         exp_ = gen_random_expression_str_2d()
         for i in range(len(mesh_resolutions)):
             u_val = solve_2d_burger(mesh_all[i], mesh_all[3], epsilon, dt, num_steps, exp_, i)

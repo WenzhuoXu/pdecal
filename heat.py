@@ -127,7 +127,9 @@ def main_steady_state(mesh_resolutions, num_simulations):
     for res in mesh_resolutions:
         xmin, xmax = 0, 1
         ymin, ymax = 0, 1
-        meshes.append(RectangleMesh(Point(xmin, ymin), Point(xmax, ymax), res, res))
+        # meshes.append(RectangleMesh(Point(xmin, ymin), Point(xmax, ymax), res, res))
+        meshes.append((Point(0, 0), 1, res))
+        meshes.append()
 
     for sim in range(num_simulations):
         print(f"Simulation {sim + 1}/{num_simulations}")
