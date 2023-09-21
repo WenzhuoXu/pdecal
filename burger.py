@@ -70,7 +70,7 @@ def generate_2d_mesh(length, n_x):
         edges(mesh)
             # define connectivity in COO format
         lines = np.zeros((2 * mesh.num_edges(), 2), dtype=np.int32)
-        line_lengths = np.zeros(2 * mesh.num_edges(), dtype=np.int32)
+        line_lengths = np.zeros(2 * mesh.num_edges(), dtype=np.float64)
 
         for i, edge in enumerate(edges(mesh)):
             lines[2*i, :] = edge.entities(0)
@@ -118,6 +118,7 @@ def solve_2d_burger(mesh, mesh_high, epsilon, dt, num_steps, expression_str=None
 
     # Initialize solution matrix
     u_val = []
+    u_val_low = []
 
     def update(u_n, u_, t, dt):
         # global cont
@@ -128,9 +129,12 @@ def solve_2d_burger(mesh, mesh_high, epsilon, dt, num_steps, expression_str=None
         # interpolate u_n to high resolution mesh
         u_n_high = interpolate_nonmatching_mesh(u_n, Q)
         u_vector = u_n_high.compute_vertex_values(mesh_high)
+        u_vector_low = u_n.compute_vertex_values(mesh)
         # compute the magnitude of the velocity
         u_mag = np.sqrt(u_vector[:len(u_vector)//2]**2 + u_vector[len(u_vector)//2:]**2)
+        u_mag_low = np.sqrt(u_vector_low[:len(u_vector_low)//2]**2 + u_vector_low[len(u_vector_low)//2:]**2)
         u_val.append(u_mag)
+        u_val_low.append(u_mag_low)
 
         t += dt
         
@@ -138,7 +142,7 @@ def solve_2d_burger(mesh, mesh_high, epsilon, dt, num_steps, expression_str=None
         update(u_n, u_, t, dt)
     
     global_solution_idx += 1
-    return np.array(u_val)
+    return np.array(u_val), np.array(u_val_low)
 
 
 def gen_random_expression_str():
@@ -176,41 +180,51 @@ if __name__ == '__main__':
     mesh_resolutions = [10, 20, 40, 80]
     mesh_all = [generate_2d_mesh(length, n_x) for n_x in mesh_resolutions]
     u_val_res_1 = []
+    u_val_res_1_low = []
     u_val_res_2 = []
+    u_val_res_2_low = []
     u_val_res_3 = []
+    u_val_res_3_low = []
     u_val_res_4 = []
+    u_val_res_4_low = []
 
-    for i in tqdm(range(500)):
+    for i in tqdm(range(20)):
         exp_ = gen_random_expression_str_2d()
         for i in range(len(mesh_resolutions)):
-            u_val = solve_2d_burger(mesh_all[i], mesh_all[3], epsilon, dt, num_steps, exp_, i)
+            u_val, u_val_low = solve_2d_burger(mesh_all[i], mesh_all[3], epsilon, dt, num_steps, exp_, i)
             if i == 0:
                 u_val_res_1.append(u_val)
+                u_val_res_1_low.append(u_val_low)
             elif i == 1:
                 u_val_res_2.append(u_val)
+                u_val_res_2_low.append(u_val_low)
             elif i == 2:
                 u_val_res_3.append(u_val)
+                u_val_res_3_low.append(u_val_low)
             elif i == 3:
                 u_val_res_4.append(u_val)
 
     
     with h5py.File('solution_{}.h5'.format(mesh_resolutions[0]), 'w') as f:
-        for i in range(500):
+        for i in range(20):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_1[i])
+            f['{}'.format(i)].create_dataset('u_low', data=u_val_res_1_low[i])
 
     with h5py.File('solution_{}.h5'.format(mesh_resolutions[1]), 'w') as f:
-        for i in range(500):
+        for i in range(20):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_2[i])
+            f['{}'.format(i)].create_dataset('u_low', data=u_val_res_2_low[i])
 
     with h5py.File('solution_{}.h5'.format(mesh_resolutions[2]), 'w') as f:
-        for i in range(500):
+        for i in range(20):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_3[i])
+            f['{}'.format(i)].create_dataset('u_low', data=u_val_res_3_low[i])
 
     with h5py.File('solution_{}.h5'.format(mesh_resolutions[3]), 'w') as f:
-        for i in range(500):
+        for i in range(20):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_4[i])
 

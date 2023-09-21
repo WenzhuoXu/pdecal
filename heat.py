@@ -393,18 +393,17 @@ def main_steady_state(mesh_resolutions, num_simulations):
             with XDMFFile(f"u_sim_{sim}_res_{res}.xdmf") as xdmf_file:
                 xdmf_file.write_checkpoint(u_approx, "u", 0, append=False)
 
-    return meshes                       
+    # return meshes                       
 
-def merge_xdmf_files_to_h5(num_simulations, mesh_resolutions, meshes):
+def merge_xdmf_files_to_h5(num_simulations, mesh_resolutions):
     for res in mesh_resolutions:
-        mesh = meshes[mesh_resolutions.index(res)]
-        mesh_interpolate = meshes[3]
-        
-        V = FunctionSpace(mesh, "CG", 1)
-        Q = FunctionSpace(mesh_interpolate, "CG", 1) 
-        
         with h5py.File(f"heat_solutions_res_{res}.h5", "w") as h5_file:
             for sim in range(num_simulations):
+                mesh, boundaries_mf, association_table = import_mesh(prefix="mesh_{}_res_{}".format(sim, res), subdomains=False, directory="mesh")
+                mesh_interpolate, boundaries_mf_interpolate, association_table_interpolate = import_mesh(prefix="mesh_{}_res_{}".format(sim, mesh_resolutions[3]), subdomains=False, directory="mesh")
+                
+                V = FunctionSpace(mesh, "CG", 1)
+                Q = FunctionSpace(mesh_interpolate, "CG", 1) 
                 u = Function(V)
                 ul = Function(Q)
                 with XDMFFile(f"u_sim_{sim}_res_{res}.xdmf") as xdmf_file:
@@ -426,34 +425,46 @@ def merge_xdmf_files_to_h5(num_simulations, mesh_resolutions, meshes):
             except KeyError:
                 print(f"Data for simulation {check_num} is not stored correctly")
 
-def save_mesh_to_xdmf(mesh_resolutions, meshes):
+def save_mesh_to_xdmf(num_simulations, mesh_resolutions):
     # xmin, xmax = 0, 1
     # ymin, ymax = 0, 1
     # mesh_resolutions = [10, 20, 40, 80]
     for res in mesh_resolutions:
-        mesh = meshes[mesh_resolutions.index(res)]
+        # mesh = meshes[mesh_resolutions.index(res)]
         with h5py.File(f"mesh_res_{res}.h5", "w") as h5_file:
-            # reconstruct the mesh
-            X = mesh.coordinates()
-            # X = [points[:, i] for i in range(2)]
-            edges(mesh)
-            # define connectivity in COO format
-            lines = np.zeros((2 * mesh.num_edges(), 2), dtype=np.int32)
-            line_lengths = np.zeros(2 * mesh.num_edges(), dtype=np.float64)
-            for i, edge in enumerate(edges(mesh)):
-                lines[2*i, :] = edge.entities(0)
-                lines[2*i+1, :] = np.flipud(edge.entities(0))
-                line_lengths[2*i] = edge.length()
-                line_lengths[2*i+1] = edge.length()
+            for sim in range(num_simulations):
+                mesh, boundaries_mf, association_table = import_mesh(prefix="mesh_{}_res_{}".format(sim, res), subdomains=False, directory="mesh")
+                # reconstruct the mesh
+                X = mesh.coordinates()
+                # X = [points[:, i] for i in range(2)]
+                edges(mesh)
+                # define connectivity in COO format
+                lines = np.zeros((2 * mesh.num_edges(), 2), dtype=np.int32)
+                cells = mesh.cells()
+                # convert cells to int32
+                cells = np.array(cells, dtype=np.int32)
+                line_lengths = np.zeros(2 * mesh.num_edges(), dtype=np.float64)
+                for i, edge in enumerate(edges(mesh)):
+                    lines[2*i, :] = edge.entities(0)
+                    lines[2*i+1, :] = np.flipud(edge.entities(0))
+                    line_lengths[2*i] = edge.length()
+                    line_lengths[2*i+1] = edge.length()
 
-            h5_file.create_dataset("X", data=X)
-            h5_file.create_dataset("lines", data=lines)
-            h5_file.create_dataset("line_lengths", data=line_lengths)
+                grp = h5_file.create_group(f"mesh_{sim}")
+
+                grp.create_dataset("X", data=X)
+                grp.create_dataset("lines", data=lines)
+                grp.create_dataset("line_lengths", data=line_lengths)
+                grp.create_dataset("cells", data=cells)
+
+                # h5_file.create_dataset("X", data=X)
+                # h5_file.create_dataset("lines", data=lines)
+                # h5_file.create_dataset("line_lengths", data=line_lengths)
 
 if __name__ == "__main__":
     num_simulations = 800
     mesh_resolutions = [10, 20, 40, 80]
-    meshes = main_steady_state(mesh_resolutions, num_simulations)
+    # main_steady_state(mesh_resolutions, num_simulations)
     
-    merge_xdmf_files_to_h5(num_simulations, mesh_resolutions, meshes)
-    save_mesh_to_xdmf(mesh_resolutions, meshes)
+    # merge_xdmf_files_to_h5(num_simulations, mesh_resolutions)
+    save_mesh_to_xdmf(num_simulations, mesh_resolutions)
