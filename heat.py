@@ -462,9 +462,9 @@ def save_mesh_to_xdmf(num_simulations, mesh_resolutions):
                 # h5_file.create_dataset("line_lengths", data=line_lengths)
 
 if __name__ == "__main__":
-    num_simulations = 800
+    num_simulations = 3000
     mesh_resolutions = [10, 20, 40, 80]
-    # main_steady_state(mesh_resolutions, num_simulations)
+    main_steady_state(mesh_resolutions, num_simulations)
     
-    # merge_xdmf_files_to_h5(num_simulations, mesh_resolutions)
+    merge_xdmf_files_to_h5(num_simulations, mesh_resolutions)
     save_mesh_to_xdmf(num_simulations, mesh_resolutions)
