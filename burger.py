@@ -110,7 +110,7 @@ def solve_2d_burger(mesh, mesh_high, epsilon, dt, num_steps, expression_str=None
     t = 0
 
     # Prepare for visualization
-    u_vector = u_n.compute_vertex_values(mesh)
+    # u_vector = u_n.compute_vertex_values(mesh)
     # compute the magnitude of the velocity
     # u_mag = np.sqrt(u_vector[:len(u_vector)//2]**2 + u_vector[len(u_vector)//2:]**2)
 
@@ -132,6 +132,9 @@ def solve_2d_burger(mesh, mesh_high, epsilon, dt, num_steps, expression_str=None
         u_vector_low = u_n.compute_vertex_values(mesh)
         # compute the magnitude of the velocity
         u_mag = np.sqrt(u_vector[:len(u_vector)//2]**2 + u_vector[len(u_vector)//2:]**2)
+        # u_x = u_vector[:len(u_vector)//2]
+        # u_y = u_vector[len(u_vector)//2:]
+        # u_mag = [u_x, u_y]
         u_mag_low = np.sqrt(u_vector_low[:len(u_vector_low)//2]**2 + u_vector_low[len(u_vector_low)//2:]**2)
         u_val.append(u_mag)
         u_val_low.append(u_mag_low)
@@ -170,7 +173,7 @@ def gen_random_expression_str_2d():
 
 if __name__ == '__main__':
     # Parameters
-    epsilon = 0.01
+    epsilon = 1e-3
     length = 3.0
     n_x = 100
     dt = 0.1
@@ -188,10 +191,10 @@ if __name__ == '__main__':
     u_val_res_4 = []
     u_val_res_4_low = []
 
-    for i in tqdm(range(20)):
+    for i in tqdm(range(100)):
         exp_ = gen_random_expression_str_2d()
         for i in range(len(mesh_resolutions)):
-            u_val, u_val_low = solve_2d_burger(mesh_all[i], mesh_all[3], epsilon, dt, num_steps, exp_, i)
+            u_val, u_val_low = solve_2d_burger(mesh_all[i], mesh_all[0], epsilon, dt, num_steps, exp_, i)
             if i == 0:
                 u_val_res_1.append(u_val)
                 u_val_res_1_low.append(u_val_low)
@@ -201,30 +204,30 @@ if __name__ == '__main__':
             elif i == 2:
                 u_val_res_3.append(u_val)
                 u_val_res_3_low.append(u_val_low)
-            elif i == 3:
+            elif i == 1:
                 u_val_res_4.append(u_val)
 
     
     with h5py.File('solution_{}.h5'.format(mesh_resolutions[0]), 'w') as f:
-        for i in range(20):
+        for i in range(100):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_1[i])
             f['{}'.format(i)].create_dataset('u_low', data=u_val_res_1_low[i])
 
     with h5py.File('solution_{}.h5'.format(mesh_resolutions[1]), 'w') as f:
-        for i in range(20):
+        for i in range(100):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_2[i])
             f['{}'.format(i)].create_dataset('u_low', data=u_val_res_2_low[i])
 
     with h5py.File('solution_{}.h5'.format(mesh_resolutions[2]), 'w') as f:
-        for i in range(20):
+        for i in range(100):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_3[i])
             f['{}'.format(i)].create_dataset('u_low', data=u_val_res_3_low[i])
 
-    with h5py.File('solution_{}.h5'.format(mesh_resolutions[3]), 'w') as f:
-        for i in range(20):
+    with h5py.File('solution_{}.h5'.format(mesh_resolutions[1]), 'w') as f:
+        for i in range(100):
             f.create_group('{}'.format(i))
             f['{}'.format(i)].create_dataset('u', data=u_val_res_4[i])
 
