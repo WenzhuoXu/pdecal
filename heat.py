@@ -16,6 +16,27 @@ import meshio
 from configparser import ConfigParser
 
 
+def generate_2d_mesh(length, n_x):
+    mesh = RectangleMesh(Point(0, 0), Point(length, length), n_x, n_x)
+    # save mesh to h5 file
+    with h5py.File('mesh_res_{}.h5'.format(n_x), 'w') as f:
+        X = mesh.coordinates()
+            # X = [points[:, i] for i in range(2)]
+        edges(mesh)
+            # define connectivity in COO format
+        lines = np.zeros((2 * mesh.num_edges(), 2), dtype=np.int32)
+        line_lengths = np.zeros(2 * mesh.num_edges(), dtype=np.float64)
+
+        for i, edge in enumerate(edges(mesh)):
+            lines[2*i, :] = edge.entities(0)
+            lines[2*i+1, :] = np.flipud(edge.entities(0))
+            line_lengths[2*i] = edge.length()
+            line_lengths[2*i+1] = edge.length()
+
+        f.create_dataset("X", data=X)
+        f.create_dataset("lines", data=lines)
+        f.create_dataset("line_lengths", data=line_lengths)
+    return mesh
 
 def msh2xdmf(mesh_name, dim=2, directory="."):
     """
@@ -370,6 +391,13 @@ def main():
     plt.show()
 
 def main_steady_state(mesh_resolutions, num_simulations):
+    mesh_all = []
+    # generate the mesh
+    for res in mesh_resolutions:
+        mesh = generate_2d_mesh(1, res)
+        # save the mesh 
+        mesh_all.append(mesh)
+        
     for sim in range(num_simulations):
         # load the mesh
         # prefix = "mesh_{}_res_{}".format(sim, max(mesh_resolutions))
@@ -380,8 +408,8 @@ def main_steady_state(mesh_resolutions, num_simulations):
 
         for res in mesh_resolutions:
             print(f"Solving for mesh resolution: {res}")
-            prefix = "mesh_{}_res_{}".format(sim, res)
-            mesh, boundaries_mf, association_table = import_mesh(prefix=prefix, subdomains=False, directory="mesh")
+            prefix = "mesh_res_{}".format(res)
+            mesh = mesh_all[mesh_resolutions.index(res)]
             u_approx = steady_state_heat_equation(res, random_heat_source, mesh)
 
             plt.close()
@@ -399,8 +427,8 @@ def merge_xdmf_files_to_h5(num_simulations, mesh_resolutions):
     for res in mesh_resolutions:
         with h5py.File(f"heat_solutions_res_{res}.h5", "w") as h5_file:
             for sim in range(num_simulations):
-                mesh, boundaries_mf, association_table = import_mesh(prefix="mesh_{}_res_{}".format(sim, res), subdomains=False, directory="mesh")
-                mesh_interpolate, boundaries_mf_interpolate, association_table_interpolate = import_mesh(prefix="mesh_{}_res_{}".format(sim, mesh_resolutions[3]), subdomains=False, directory="mesh")
+                mesh, boundaries_mf, association_table = import_mesh(prefix="mesh_res_{}".format(res), subdomains=False, directory="mesh")
+                mesh_interpolate, boundaries_mf_interpolate, association_table_interpolate = import_mesh(prefix="mesh_res_{}".format(mesh_resolutions[3]), subdomains=False, directory="mesh")
                 
                 V = FunctionSpace(mesh, "CG", 1)
                 Q = FunctionSpace(mesh_interpolate, "CG", 1) 
@@ -463,7 +491,7 @@ def save_mesh_to_xdmf(num_simulations, mesh_resolutions):
 
 if __name__ == "__main__":
     num_simulations = 3000
-    mesh_resolutions = [10, 20, 40, 80]
+    mesh_resolutions = [8, 16, 32, 64]
     main_steady_state(mesh_resolutions, num_simulations)
     
     merge_xdmf_files_to_h5(num_simulations, mesh_resolutions)
