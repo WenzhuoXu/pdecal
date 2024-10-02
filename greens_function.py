@@ -12,8 +12,11 @@ def boundary(x, on_boundary):
 
 bc = DirichletBC(V, Constant(0.0), boundary)
 
-# Define the source term as a Dirac delta function (Green's function singularity at the center of the domain)
-delta = PointSource(V, Point(0.5, 0.5), 1.0)
+# Define the point of singularity (the location of the Dirac delta)
+xi = Point(0.3, 0.7)  # Example location of the singularity (can be any point within the domain)
+
+# Define the source term as a Dirac delta function with singularity at the point xi
+delta = PointSource(V, xi, 1.0)  # 1.0 is the strength of the Dirac delta
 
 # Define the test and trial functions
 u = TrialFunction(V)
@@ -36,7 +39,7 @@ solve(A, u_sol.vector(), b)
 # Plot the solution (the Green's function)
 p = plot(u_sol, title="Green's function for Poisson equation", mode='color')
 plt.colorbar(p)
-plt.savefig("greens_function.png")
+plt.show()
 
 # Save the solution to a file
 vtkfile = File("greens_function.pvd")
